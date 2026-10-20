@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn City Results</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="signInScreen">
+    <h1>Results</h1>
+    <p class="subtitle">Learn City Model Schools &amp; Academy</p>
+    <p class="subtitle">Sign in with the same email and code you use for Spark Points.</p>
+    <form id="signInForm" autocomplete="on">
+      <label for="staffEmail">Email</label>
+      <input type="email" id="staffEmail" autocomplete="username">
+      <label for="staffCode">Code</label>
+      <input type="password" id="staffCode" autocomplete="current-password" inputmode="numeric">
+      <label class="check"><input type="checkbox" id="rememberMeToggle"> Remember me on this device (not on shared computers)</label>
+      <button id="signInBtn" type="submit">Sign In</button>
+    </form>
+    <p id="signInError" class="error"></p>
+  </div>
+
+  <div id="mainScreen" class="hidden">
+    <div class="topBar">
+      <div>
+        <strong id="staffNameDisplay"></strong>
+        <span id="staffRoleDisplay" class="subtitle"></span>
+        <div class="subtitle"><span id="sessionDisplay"></span> · <select id="termSelect" class="inlineSelect"></select></div>
+      </div>
+      <button id="signOutBtn" type="button" class="linkBtn">Sign out</button>
+    </div>
+
+    <nav class="tabBar">
+      <button type="button" class="tabBtn hidden" data-tab="classesTab" id="classesTabBtn">My Classes</button>
+      <button type="button" class="tabBtn hidden" data-tab="setupTab" id="setupTabBtn">Setup</button>
+    </nav>
+
+    <p id="noAccessNote" class="subtitle hidden">You are not set up as a class teacher or approver for any class. Contact the Head of IT if this is wrong.</p>
+
+    <section id="classesTab" class="tabPanel hidden">
+      <div id="classList"><p class="subtitle">Loading...</p></div>
+      <div id="classView" class="hidden">
+        <button type="button" class="linkBtn" data-act="backToClasses">&larr; All classes</button>
+        <div id="classHeader"></div>
+        <nav class="tabBar" id="subTabBar"></nav>
+        <div id="subPanel"></div>
+      </div>
+    </section>
+
+    <section id="setupTab" class="tabPanel hidden">
+      <div id="setupContent"><p class="subtitle">Loading...</p></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

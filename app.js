@@ -139,12 +139,13 @@ function loadClassList() {
     const rows = r.rows.slice().sort(function (a, b) {
       return (a.isApprover && !a.isTeacher ? order[a.status] : 5) - (b.isApprover && !b.isTeacher ? order[b.status] : 5) || a.className.localeCompare(b.className, undefined, { numeric: true });
     });
-    $('classList').innerHTML = '<p class="subtitle">' + esc(r.term) + ', ' + esc(r.session) + '. Classes you teach, and classes you approve.</p>' +
+    $('classList').innerHTML = '<p class="subtitle">' + esc(r.term) + ', ' + esc(r.session) + '. Classes you teach, subjects you score, and classes you approve.</p>' +
       '<div class="tableWrap"><table class="dataTable"><thead><tr><th>Class</th><th>Report</th><th>Class teacher</th><th>Status</th><th>Your role</th></tr></thead><tbody>' +
       rows.map(function (c) {
         return '<tr class="clickable" data-act="openClass" data-class="' + esc(c.className) + '"><td><strong>' + esc(c.displayName) + '</strong>' +
           (c.displayName !== c.className ? '<br><span class="muted">' + esc(c.className) + '</span>' : '') + '</td><td>' + esc(c.template) + '</td><td>' + esc(c.teacher) + '</td><td>' + chip(c.status) +
-          '</td><td>' + [c.isTeacher ? 'Class teacher' : '', c.isApprover ? 'Approver' : ''].filter(Boolean).join(', ') + '</td></tr>';
+          '</td><td>' + [c.isTeacher ? 'Class teacher' : '', c.isApprover ? 'Approver' : '',
+            c.mySubjects && c.mySubjects.length ? 'Subject teacher: ' + esc(c.mySubjects.join(', ')) : ''].filter(Boolean).join('<br>') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }).catch(function () { $('classList').innerHTML = '<p class="error">Could not reach the server.</p>'; });
 }
@@ -182,12 +183,14 @@ function renderClassHeader() {
   if (c.status === 'Draft' && String(si['Return Note'] || '').indexOf('Reopened') === 0) notes = '<p class="warn">' + esc(si['Return Note']) + '</p>';
   $('classHeader').innerHTML = '<div class="card"><div class="cardHead"><h2>' + esc(cl.displayName || c.className) + '</h2>' + chip(c.status) + '</div>' +
     '<p class="subtitle">' + esc(c.template.label) + ' · ' + c.students.length + ' students · ' + esc(c.term) + ', ' + esc(c.session) + '</p>' + notes +
-    (c.permissions.canEdit ? '' : '<p class="muted">' + (c.status === 'Submitted' ? 'Submitted for approval — entries are locked.' : c.status === 'Approved' || c.status === 'Published' ? 'Approved — results are locked.' : 'View only.') + '</p>') + '</div>';
+    (c.permissions.subjectOnly && c.permissions.canEditScores ? '<p class="muted">You enter scores for ' + esc(c.permissions.mySubjects.join(', ')) + '. The class teacher does the rest and submits the class.</p>' : '') +
+    (c.permissions.canEdit || c.permissions.canEditScores ? '' : '<p class="muted">' + (c.status === 'Submitted' ? 'Submitted for approval — entries are locked.' : c.status === 'Approved' || c.status === 'Published' ? 'Approved — results are locked.' : 'View only.') + '</p>') + '</div>';
 }
 
 function subTabsFor() {
   const t = state.cls.template;
   const tabs = [];
+  if (state.cls.permissions.subjectOnly) return [['scores', 'Scores']];
   if (t.scored) tabs.push(['scores', 'Scores']);
   if (t.ratings) tabs.push(['ratings', 'Skills & ratings']);
   if (t.progress && t.progress.length) tabs.push(['progress', 'Progress']);
@@ -199,7 +202,7 @@ function subTabsFor() {
 
 function renderSubTabs(active) {
   const tabs = subTabsFor();
-  if (!active || !tabs.some(function (t) { return t[0] === active; })) active = (state.cls.permissions.canEdit ? tabs[0][0] : 'review');
+  if (!active || !tabs.some(function (t) { return t[0] === active; })) active = (state.cls.permissions.canEdit || state.cls.permissions.canEditScores ? tabs[0][0] : 'review');
   state.sub = active;
   $('subTabBar').innerHTML = tabs.map(function (t) { return '<button type="button" class="tabBtn' + (t[0] === active ? ' activeTab' : '') + '" data-act="sub" data-sub="' + t[0] + '">' + t[1] + '</button>'; }).join('');
   ({ scores: renderScores, ratings: renderRatings, progress: renderProgress, details: renderDetails, comments: renderComments, review: renderReview })[active]();
@@ -212,11 +215,19 @@ function leaveGuard() {
 
 /* ---------- scores ---------- */
 
+function canEditSubject(subj) {
+  const p = state.cls.permissions;
+  return !!(p.canEdit || (p.canEditScores && (p.mySubjects || []).indexOf(subj) !== -1));
+}
+
 function renderScores() {
-  const c = state.cls, t = c.template, edit = c.permissions.canEdit;
+  const c = state.cls, t = c.template, edit = canEditSubject(c.subject);
   const subj = c.subject;
   const comps = t.components;
-  let html = '<div class="card"><div class="studentNav"><label style="margin:0">Subject</label><select id="subjectSelect">' + options(t.subjects, subj) + '</select></div>';
+  const who = c.subjectTeachers || {};
+  const subjOpts = t.subjects.map(function (x) { return [x, x + (who[x] && !c.permissions.subjectOnly ? ' — ' + who[x] : '')]; });
+  let html = '<div class="card"><div class="studentNav"><label style="margin:0">Subject</label><select id="subjectSelect">' + options(subjOpts, subj) + '</select></div>';
+  if (who[subj] && !c.permissions.subjectOnly) html += '<p class="muted">Subject teacher: ' + esc(who[subj]) + '. They enter these scores; you can correct them before you submit.</p>';
   html += '<p class="muted">Marks out of: ' + comps.map(function (x) { return esc(x[0]) + ' ' + x[1]; }).join(' · ') + ' = 100.' +
     (t.electives ? ' Leave a row blank if the student does not take this subject.' : ' Leave a row blank only if the student did not sit this subject.') +
     ' Press Enter to move down a column.</p>';
@@ -545,6 +556,11 @@ function renderSetup() {
         '<td><button type="button" class="smallBtn" data-act="saveClassSetup">Save</button><p class="formMsg"></p></td></tr>';
     }).join('') + '</tbody></table></div></div>';
 
+  const scoredClasses = s.classes.filter(function (c) { return !/^Pre-?Nursery/i.test(c.className); }).map(function (c) { return [c.className, c.displayName && c.displayName !== c.className ? c.displayName + ' (' + c.className + ')' : c.className]; });
+  html += '<div class="card"><h2>Subject teachers</h2><p class="muted">Who enters each subject\'s scores in a class. Leave a subject on \u201cClass teacher\u201d if the class teacher enters it. ' +
+    'Subject teachers see only their own subjects; the class teacher can still correct any subject and submits the class. A subject teacher needs a Spark Points account.</p>' +
+    '<label>Class</label><select id="stClass">' + options(scoredClasses, state.stClass || '', 'Choose a class...') + '</select><div id="stTable"></div></div>';
+
   html += '<div class="card"><h2>Pre-Nursery pupils</h2><p class="muted">Pre-Nursery is not in Spark Points, so its pupils are listed here. Every other class comes from Spark Points STUDENTS.</p>' +
     '<div class="tableWrap"><table class="dataTable"><thead><tr><th>Admission no.</th><th>Name</th><th>Class</th><th>Parent email</th><th>Active</th></tr></thead><tbody>' +
     (s.preNursery.length ? s.preNursery.map(function (p) {
@@ -556,6 +572,24 @@ function renderSetup() {
     '<div><label>Parent/guardian email</label><input name="parentEmail" type="email"></div><div><label>Active</label><select name="active">' + options([['yes', 'Yes'], ['no', 'No (left)']], 'yes') + '</select></div></div>' +
     '<button type="button" data-act="savePreNursery">Save pupil</button><p class="formMsg"></p></div></div>';
   $('setupContent').innerHTML = html;
+  if (state.stClass) loadSubjectTeachers(state.stClass);
+}
+
+function loadSubjectTeachers(cls) {
+  state.stClass = cls;
+  const box = $('stTable');
+  if (!box) return;
+  if (!cls) { box.innerHTML = ''; return; }
+  box.innerHTML = '<p class="subtitle">Loading...</p>';
+  call('getSubjectTeachers', { className: cls }).then(function (r) {
+    if (!r || !r.success) { box.innerHTML = '<p class="error">' + esc((r && r.error) || 'Could not load.') + '</p>'; return; }
+    if (!r.subjects.length) { box.innerHTML = '<p class="muted">' + esc(r.note || 'No scored subjects.') + '</p>'; return; }
+    const staffOpts = state.setup.staff.map(function (u) { return [u.email, u.name + ' — ' + u.role]; });
+    box.innerHTML = '<p class="muted">Class teacher: ' + esc(r.classTeacher || 'not assigned') + '</p><div class="tableWrap"><table class="dataTable"><thead><tr><th>Subject</th><th>Entered by</th></tr></thead><tbody>' +
+      r.subjects.map(function (x) {
+        return '<tr data-subject="' + esc(x.subject) + '"><td>' + esc(x.subject) + '</td><td><select class="stTeach">' + options(staffOpts, x.teacherEmail, 'Class teacher') + '</select></td></tr>';
+      }).join('') + '</tbody></table></div><button type="button" data-act="saveSubjectTeachers">Save subject teachers for this class</button><p class="formMsg"></p>';
+  }).catch(function () { box.innerHTML = '<p class="error">Could not reach the server.</p>'; });
 }
 
 function setupCall(action, extra, btn, ok) {
@@ -615,6 +649,14 @@ function handleAct(act, el, e) {
       teacherName: tr.querySelector('.cName').value }, el);
     return;
   }
+  if (act === 'saveSubjectTeachers') {
+    const assignments = [];
+    document.querySelectorAll('#stTable tr[data-subject]').forEach(function (tr) {
+      assignments.push({ subject: tr.getAttribute('data-subject'), teacherEmail: tr.querySelector('.stTeach').value });
+    });
+    setupCall('saveSubjectTeachers', { className: state.stClass, assignments: assignments }, el, 'Saved.');
+    return;
+  }
   if (act === 'savePreNursery') {
     const f = $('pnForm');
     const v = function (n) { return f.querySelector('[name="' + n + '"]').value.trim(); };
@@ -658,6 +700,7 @@ function wire() {
       if (!leaveGuard()) { e.target.value = state.cls.subject; return; }
       state.dirty = false; state.cls.subject = e.target.value; renderScores();
     }
+    if (e.target.id === 'stClass') { loadSubjectTeachers(e.target.value); return; }
     if (e.target.id === 'studentPick') {
       if (!leaveGuard()) { e.target.value = state.studentIdx; return; }
       state.dirty = false; state.studentIdx = Number(e.target.value); renderSubTabs(state.sub);
@@ -671,6 +714,18 @@ function wire() {
     if (next) { next.focus(); next.select(); }
   });
   window.addEventListener('beforeunload', function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  /* A link from the access email looks like ?email=...&code=... — prefill
+     and sign in automatically, then strip them from the address bar so the
+     code is not left visible or bookmarked. Same as Spark Points. */
+  const params = new URLSearchParams(location.search);
+  if (params.get('email') && params.get('code')) {
+    $('staffEmail').value = params.get('email');
+    $('staffCode').value = params.get('code');
+    history.replaceState({}, document.title, location.pathname);
+    trySignIn(params.get('email'), params.get('code'));
+    return;
+  }
 
   let se, sc;
   try { se = localStorage.getItem(STORE_EMAIL) || sessionStorage.getItem(STORE_EMAIL); sc = localStorage.getItem(STORE_CODE) || sessionStorage.getItem(STORE_CODE); } catch (e) {}

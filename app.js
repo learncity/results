@@ -440,10 +440,10 @@ function renderReview() {
 
   if (p.canSubmit) html += actionForm('submitClass', 'Submit for approval', 'Submit these results for approval? You will not be able to change them unless they are returned.', '');
   if (p.canReturn) html += actionForm('returnClass', 'Return to class teacher', 'Return these results to the class teacher?', '<label>What needs correcting</label><textarea name="note" rows="2"></textarea>');
-  if (p.canApprove) html += actionForm('approveClass', 'Approve and lock', 'Approve and lock these results? Nobody can change them afterwards unless the Head of School reopens them.', '');
+  if (p.canApprove) html += actionForm('approveClass', 'Approve and lock', 'Approve and lock these results? Nobody can change them afterwards unless the Head of School or Head Teacher reopens them.', '');
   if (p.canPublish) html += actionForm('publishClass', 'Publish report cards', 'Create the PDF report cards and send them now? This cannot be undone.',
     '<label class="check"><input type="checkbox" name="sendEmail" checked> Email each report to the parent on file</label><p class="muted">PDFs are always saved to the school\'s Results folder in Google Drive.</p>');
-  if (p.canReopen) html += '<button type="button" class="smallBtn" data-act="toggle" data-target="reopenBox">Reopen (Head of School)</button><div id="reopenBox" class="hidden">' +
+  if (p.canReopen) html += '<button type="button" class="smallBtn" data-act="toggle" data-target="reopenBox">Reopen</button><div id="reopenBox" class="hidden">' +
     actionForm('reopenClass', 'Reopen', 'Reopen these results for editing? The reason is logged.', '<label>Reason</label><input name="reason">') + '</div>';
 
   html += '</div><div class="card"><h3>Preview</h3>' + studentPicker() + '<div class="itemActions">' +
